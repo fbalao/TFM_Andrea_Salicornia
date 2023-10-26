@@ -1,6 +1,49 @@
 # Transcriptome alteration in **Salicornia ramossisima** after exposure to multiple combined stresses
 This folder contains the R code employed in the final master's thesis of the student Andrea Martín Díaz. October call of the academic year 2022/23 MADOBIS
 
+# Check strandedness of RNAseq
+
+check_strandedness --gtf ../../salicornia_genomes/Salicornia_europaea_2023/SAEU.gtf  --transcripts ../../salicornia_genomes/Salicornia_europaea_2023/SAEU_CDS.fasta --reads_1 HH3_1CWS_1_c.fq.gz --reads_2 HH3_1CWS_2_c.fq.gz
+
+# STAR mapping RNA reads
+
+## set conda enviroment
+conda activate  STAR_mapping
+
+## Index genome
+### set variables
+ASM=/mnt/nfs_storage9tb/export/data/andrea_salicornia/salicornia_genomes/Salicornia_europaea_2023/SAEU_assembly_Full.fasta
+
+### indexing
+STAR --runMode genomeGenerate --genomeSAindexNbases 13 \
+--genomeDir /mnt/nfs_storage9tb/export/data/andrea_salicornia/salicornia_genomes/Salicornia_europaea_2023/STAR_map/star_index \
+--genomeFastaFiles $ASM \
+--sjdbGTFfile /mnt/nfs_storage9tb/export/data/andrea_salicornia/salicornia_genomes/Salicornia_europaea_2023/SAEU.gtf \
+--sjdbOverhang 150 \
+--runThreadN 23
+
+### STAR mapping
+cd /mnt/nfs_storage9tb/export/data/andrea_salicornia/salicornia_analysis/salicornia_cleanreads/
+FILES=$(find . -name "*1_c.fq.gz" | rev | cut -c11- | rev)
+for i in $FILES
+do
+STAR --runThreadN 21 \
+--genomeDir /mnt/nfs_storage9tb/export/data/andrea_salicornia/salicornia_genomes/Salicornia_europaea_2023/STAR_map/star_index \
+--readFilesCommand zcat \
+--readFilesIn $i\_1_c\.fq.gz $i\_2_c\.fq.gz \
+--outFileNamePrefix $i\_STAR \
+--outSAMtype BAM SortedByCoordinate \
+--quantMode GeneCounts \
+--outFilterScoreMinOverLread 0.1 \
+--outFilterMatchNminOverLread 0.1 \
+--outFilterMismatchNmax 5
+done
+
+# Make the count table for R 
+paste *ReadsPerGene.out.tab | grep -v "N_" | awk '{printf "%s\t", $1}{for (i=2;i<=NF;i+=2) printf "%s\t", $i; printf "\n" }' > tmpfile
+sed -e "1igene_name\t$(ls *ReadsPerGene.out.tab | tr '\n' '\t' | sed 's/ReadsPerGene.out.tab//g')" tmpfile | cut -f1-97 > raw_counts_salicornia_matrix.txt
+sed -i s/_STAR//g raw_counts_salicornia_matrix.txt
+
 # Import genes counts into R :
 
 ``` r
